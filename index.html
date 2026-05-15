@@ -1,0 +1,560 @@
+git init<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Google 2048</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f5f5;
+      --surface: #ffffff;
+      --grid-bg: #e0e0e0;
+      --cell-empty: #ebebeb;
+      --text-primary: #1a1a1a;
+      --text-muted: #aaa;
+      --shadow-lg: 0 8px 32px rgba(0,0,0,0.10);
+      --radius: 18px;
+      --tile-size: 64px;
+      --gap: 10px;
+    }
+
+    [data-theme="dark"] {
+      --bg: #0d0d0d;
+      --surface: #161616;
+      --grid-bg: #1e1e1e;
+      --cell-empty: #222;
+      --text-primary: #f0f0f0;
+      --text-muted: #444;
+      --shadow-lg: 0 8px 40px rgba(0,0,0,0.6);
+    }
+
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.4s, color 0.4s;
+      overflow-x: hidden;
+    }
+
+    [data-theme="dark"] body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 70% 50% at 25% 20%, rgba(66,133,244,0.05) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(234,67,53,0.04) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    #root {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 28px 0 48px;
+      gap: 0;
+    }
+
+    /* ── Header ─────────────────────────── */
+    .header {
+      width: 316px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+
+    .title {
+      font-size: 19px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+
+    .g-b { color: #4285f4; }
+    .g-r { color: #ea4335; }
+    .g-y { color: #fbbc05; }
+    .g-g { color: #34a853; }
+
+    .header-right { display: flex; align-items: center; gap: 12px; }
+
+    .scores { display: flex; align-items: center; gap: 10px; }
+
+    .score-pill { display: flex; flex-direction: column; align-items: flex-end; }
+    .score-pill .lbl {
+      font-size: 8px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.9px;
+      color: var(--text-muted);
+      line-height: 1;
+    }
+    .score-pill .val {
+      font-size: 17px;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+
+    .divider {
+      width: 1px;
+      height: 26px;
+      background: var(--grid-bg);
+    }
+
+    .theme-btn {
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 7px;
+      transition: color 0.2s, background 0.2s;
+      padding: 0;
+      line-height: 1;
+    }
+    .theme-btn:hover { color: var(--text-primary); background: var(--grid-bg); }
+
+    /* ── Progress line ───────────────────── */
+    .progress-line {
+      width: 316px;
+      height: 2px;
+      background: var(--cell-empty);
+      border-radius: 99px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, #4285f4 0%, #ea4335 33%, #fbbc05 66%, #34a853 100%);
+      background-size: 300% 100%;
+      animation: shimmer 3s linear infinite;
+      transition: width 0.5s cubic-bezier(.34,1.56,.64,1);
+    }
+
+    @keyframes shimmer {
+      0%   { background-position: 300% 0; }
+      100% { background-position: -300% 0; }
+    }
+
+    /* ── Grid ───────────────────────────── */
+    .grid-container {
+      background: var(--grid-bg);
+      border-radius: var(--radius);
+      padding: var(--gap);
+      position: relative;
+      touch-action: none;
+      user-select: none;
+      box-shadow: var(--shadow-lg);
+    }
+
+    [data-theme="dark"] .grid-container {
+      background: linear-gradient(145deg, #1f1f1f 0%, #181818 60%, #1b1b1b 100%);
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.04),
+        0 16px 56px rgba(0,0,0,0.75);
+    }
+
+    .grid-bg-cells {
+      display: grid;
+      grid-template-columns: repeat(4, var(--tile-size));
+      grid-template-rows: repeat(4, var(--tile-size));
+      gap: var(--gap);
+    }
+
+    .cell-empty {
+      width: var(--tile-size);
+      height: var(--tile-size);
+      background: var(--cell-empty);
+      border-radius: 9px;
+    }
+
+    [data-theme="dark"] .cell-empty { background: rgba(255,255,255,0.025); }
+
+    /* ── Tile layer ─────────────────────── */
+    .tile-layer {
+      position: absolute;
+      top: var(--gap);
+      left: var(--gap);
+      pointer-events: none;
+    }
+
+    .tile {
+      width: var(--tile-size);
+      height: var(--tile-size);
+      border-radius: 9px;
+      position: absolute;
+      background: var(--surface);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+      overflow: hidden;
+      transition: left 0.11s cubic-bezier(.4,0,.2,1), top 0.11s cubic-bezier(.4,0,.2,1);
+    }
+
+    [data-theme="dark"] .tile {
+      background: #252525;
+      box-shadow: 0 2px 14px rgba(0,0,0,0.55);
+    }
+
+    .tile img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      padding: 5px;
+    }
+
+    .tile.new    { animation: tileIn  0.16s cubic-bezier(.34,1.56,.64,1) both; }
+    .tile.merged { animation: tilePop 0.20s cubic-bezier(.34,1.56,.64,1) both; z-index: 10; }
+
+    @keyframes tileIn  { from { transform:scale(0); opacity:0; } to { transform:scale(1); opacity:1; } }
+    @keyframes tilePop { 0%{transform:scale(1);} 45%{transform:scale(1.22);} 100%{transform:scale(1);} }
+
+    /* ── New game ───────────────────────── */
+    .new-btn {
+      margin-top: 16px;
+      padding: 0 22px;
+      height: 36px;
+      border: none;
+      border-radius: 99px;
+      background: var(--text-primary);
+      color: var(--bg);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.2px;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    .new-btn:hover  { opacity: 0.78; }
+    .new-btn:active { transform: scale(0.95); }
+
+    /* ── Overlays ───────────────────────── */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.42);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
+
+    .overlay-card {
+      background: var(--surface);
+      border-radius: 22px;
+      padding: 38px 32px 30px;
+      max-width: 268px;
+      width: 88%;
+      text-align: center;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.2);
+      animation: cardUp 0.28s cubic-bezier(.34,1.56,.64,1) both;
+    }
+
+    [data-theme="dark"] .overlay-card {
+      background: #1c1c1c;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05);
+    }
+
+    @keyframes cardUp { from{transform:translateY(22px) scale(0.93);opacity:0;} to{transform:none;opacity:1;} }
+
+    .ov-emoji { font-size: 42px; margin-bottom: 12px; }
+    .ov-title { font-size: 21px; font-weight: 600; letter-spacing: -0.4px; margin-bottom: 6px; }
+    .ov-sub   { font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 20px; }
+
+    .ov-score-wrap { margin-bottom: 26px; }
+    .ov-score      { font-size: 38px; font-weight: 600; letter-spacing: -1px; line-height: 1; }
+    .ov-lbl        { font-size: 10px; color: var(--text-muted); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.8px; }
+
+    .ov-btns { display: flex; gap: 8px; justify-content: center; }
+
+    .o-btn {
+      flex: 1;
+      height: 38px;
+      border: none;
+      border-radius: 99px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.15s;
+      max-width: 116px;
+    }
+    .o-btn:hover  { opacity: 0.78; }
+    .o-btn:active { transform: scale(0.95); }
+    .o-btn.primary { background: var(--text-primary); color: var(--bg); }
+    .o-btn.ghost   { background: var(--grid-bg); color: var(--text-primary); }
+
+    /* ── Toast ──────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 26px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--text-primary);
+      color: var(--bg);
+      padding: 7px 16px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 500;
+      z-index: 200;
+      pointer-events: none;
+      white-space: nowrap;
+      animation: tIn 0.2s cubic-bezier(.34,1.56,.64,1), tOut 0.3s ease 1.7s forwards;
+    }
+
+    @keyframes tIn  { from{opacity:0;transform:translateX(-50%) translateY(10px);}to{opacity:1;transform:translateX(-50%) translateY(0);} }
+    @keyframes tOut { to{opacity:0;} }
+
+    @media (max-width: 360px) {
+      :root { --tile-size: 56px; --gap: 8px; }
+      .header, .progress-line { width: calc(4*56px + 3*8px + 2*8px); }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script>
+const { useState, useEffect, useRef, useCallback } = React;
+
+const SIZE = 4;
+const WIN  = 11;
+const BASE = 'public/assets/';
+const IMGS = [null,'1.png','2.png','3.png','4.png','5.png','6.png','7.png','8.png','9.png','10.png','11.png'];
+const LS   = 'g2048zen';
+
+let _n = 1;
+const nid = () => _n++;
+
+function emptyGrid()   { return Array.from({length:SIZE},()=>Array(SIZE).fill(null)); }
+function addRandom(g)  {
+  const e=[]; for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(!g[r][c])e.push([r,c]);
+  if(!e.length) return g;
+  const [r,c]=e[Math.floor(Math.random()*e.length)], n=g.map(x=>[...x]);
+  n[r][c]={id:nid(),value:1,isNew:true,isMerged:false}; return n;
+}
+function init()        { return addRandom(addRandom(emptyGrid())); }
+
+function slideRow(row) {
+  const t=row.filter(Boolean); let sc=0,res=[],i=0;
+  while(i<t.length){
+    if(i+1<t.length&&t[i].value===t[i+1].value){
+      const v=t[i].value+1; res.push({id:nid(),value:v,isNew:false,isMerged:true}); sc+=v; i+=2;
+    } else { res.push({...t[i],isNew:false,isMerged:false}); i++; }
+  }
+  while(res.length<SIZE) res.push(null);
+  return {row:res,sc};
+}
+
+function tr(g) { return Array.from({length:SIZE},(_,r)=>Array.from({length:SIZE},(_,c)=>g[c][r])); }
+
+function rot(g,d) {
+  if(d==='left')  return g.map(r=>[...r]);
+  if(d==='right') return g.map(r=>[...r].reverse());
+  if(d==='up')    return tr(g);
+  if(d==='down')  return tr(g).map(r=>[...r].reverse());
+}
+function unrot(g,d) {
+  if(d==='left')  return g;
+  if(d==='right') return g.map(r=>[...r].reverse());
+  if(d==='up')    return tr(g);
+  if(d==='down')  return tr(g.map(r=>[...r].reverse()));
+}
+
+function doMove(g,d) {
+  const r=rot(g,d); let tot=0,ch=false;
+  const mv=r.map(row=>{
+    const {row:s,sc}=slideRow(row); tot+=sc;
+    if(!ch) for(let c=0;c<SIZE;c++){const a=row[c],b=s[c];if((a===null)!==(b===null)||(a&&b&&a.id!==b.id)){ch=true;break;}}
+    return s;
+  });
+  return {grid:unrot(mv,d),sc:tot,ch};
+}
+
+function won(g)  { return g.some(r=>r.some(t=>t&&t.value>=WIN)); }
+function live(g) {
+  for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++){
+    if(!g[r][c]) return true;
+    if(c<SIZE-1&&g[r][c].value===g[r][c+1]?.value) return true;
+    if(r<SIZE-1&&g[r][c].value===g[r+1]?.[c]?.value) return true;
+  } return false;
+}
+function clr(g) { return g.map(r=>r.map(t=>t?{...t,isNew:false,isMerged:false}:null)); }
+
+function save(s) { try{localStorage.setItem(LS,JSON.stringify(s));}catch{} }
+function load()  { try{const r=localStorage.getItem(LS);return r?JSON.parse(r):null;}catch{return null;} }
+
+function Tile({tile,row,col}) {
+  const sz=64,gap=10;
+  return React.createElement('div',{
+    className:`tile${tile.isNew?' new':''}${tile.isMerged?' merged':''}`,
+    style:{top:row*(sz+gap),left:col*(sz+gap)},
+  }, React.createElement('img',{src:BASE+IMGS[Math.min(tile.value,WIN)],alt:'',draggable:false}));
+}
+
+function App() {
+  const sv=load();
+  const [grid,  G]  = useState(()=>sv?.grid||init());
+  const [score, S]  = useState(()=>sv?.score||0);
+  const [best,  B]  = useState(()=>{try{return parseInt(localStorage.getItem('g2048best')||'0');}catch{return 0;}});
+  const [winState,W]= useState(()=>sv?.win||false);
+  const [over,  O]  = useState(()=>sv?.over||false);
+  const [cont,  C]  = useState(()=>sv?.cont||false);
+  const [theme, T]  = useState(()=>{try{return localStorage.getItem('g2048theme')||'dark';}catch{return 'dark';}});
+  const [toast, ST] = useState(null);
+  const tmr = useRef(null);
+
+  useEffect(()=>{ document.documentElement.setAttribute('data-theme',theme); try{localStorage.setItem('g2048theme',theme);}catch{} },[theme]);
+  useEffect(()=>{ save({grid,score,win:winState,over,cont}); },[grid,score,winState,over,cont]);
+  useEffect(()=>{ if(score>best){B(score);try{localStorage.setItem('g2048best',String(score));}catch{}} },[score]);
+
+  const toast_=useCallback(msg=>{
+    if(tmr.current)clearTimeout(tmr.current);
+    ST(msg); tmr.current=setTimeout(()=>ST(null),2000);
+  },[]);
+
+  const move=useCallback(d=>{
+    if(over||(winState&&!cont)) return;
+    G(prev=>{
+      const {grid:mv,sc,ch}=doMove(clr(prev),d);
+      if(!ch){toast_('Hareket yok');return prev;}
+      const nxt=addRandom(mv);
+      if(!winState&&won(nxt)) W(true);
+      if(!live(nxt)) O(true);
+      S(s=>s+sc);
+      return nxt;
+    });
+  },[over,winState,cont,toast_]);
+
+  useEffect(()=>{
+    const MAP={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down',a:'left',d:'right',w:'up',s:'down'};
+    const h=e=>{const d=MAP[e.key];if(d){e.preventDefault();move(d);}};
+    window.addEventListener('keydown',h);
+    return ()=>window.removeEventListener('keydown',h);
+  },[move]);
+
+  const touch=useRef(null);
+  const ts=e=>{const t=e.touches[0];touch.current={x:t.clientX,y:t.clientY};};
+  const te=e=>{
+    if(!touch.current)return;
+    const t=e.changedTouches[0],dx=t.clientX-touch.current.x,dy=t.clientY-touch.current.y;
+    if(Math.max(Math.abs(dx),Math.abs(dy))<18)return;
+    move(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'));
+    touch.current=null;
+  };
+
+  const reset=()=>{G(init());S(0);W(false);O(false);C(false);};
+
+  const maxV=grid.reduce((m,r)=>r.reduce((mm,t)=>Math.max(mm,t?t.value:0),m),0);
+  const pct=Math.min((maxV/WIN)*100,100);
+
+  const tiles=[];
+  for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(grid[r][c]) tiles.push({tile:grid[r][c],row:r,col:c});
+
+  const sp=(ch,cls)=>React.createElement('span',{className:cls},ch);
+
+  return React.createElement(React.Fragment, null,
+
+    React.createElement('div',{className:'header'},
+      React.createElement('div',{className:'title'},
+        sp('G','g-b'),sp('o','g-r'),sp('o','g-y'),sp('g','g-g'),sp('l','g-b'),sp('e','g-r'),
+        React.createElement('span',{style:{color:'var(--text-primary)',marginLeft:4}},'2048'),
+      ),
+      React.createElement('div',{className:'header-right'},
+        React.createElement('div',{className:'scores'},
+          React.createElement('div',{className:'score-pill'},
+            React.createElement('span',{className:'lbl'},'SKOR'),
+            React.createElement('span',{className:'val'},score),
+          ),
+          React.createElement('div',{className:'divider'}),
+          React.createElement('div',{className:'score-pill'},
+            React.createElement('span',{className:'lbl'},'EN İYİ'),
+            React.createElement('span',{className:'val'},best),
+          ),
+        ),
+        React.createElement('button',{className:'theme-btn',onClick:()=>T(t=>t==='dark'?'light':'dark')},
+          theme==='dark'?'○':'●'
+        ),
+      )
+    ),
+
+    React.createElement('div',{className:'progress-line'},
+      React.createElement('div',{className:'progress-fill',style:{width:`${pct}%`}})
+    ),
+
+    React.createElement('div',{className:'grid-container',onTouchStart:ts,onTouchEnd:te},
+      React.createElement('div',{className:'grid-bg-cells'},
+        ...Array.from({length:SIZE*SIZE},(_,i)=>React.createElement('div',{key:i,className:'cell-empty'}))
+      ),
+      React.createElement('div',{className:'tile-layer'},
+        ...tiles.map(({tile,row,col})=>React.createElement(Tile,{key:tile.id,tile,row,col}))
+      )
+    ),
+
+    React.createElement('button',{className:'new-btn',onClick:reset},'Yeni Oyun'),
+
+    toast?React.createElement('div',{className:'toast'},toast):null,
+
+    winState&&!cont?React.createElement('div',{className:'overlay'},
+      React.createElement('div',{className:'overlay-card'},
+        React.createElement('div',{className:'ov-emoji'},'🎉'),
+        React.createElement('div',{className:'ov-title'},
+          sp('Teb','g-b'),sp('ri','g-r'),sp('k','g-y'),sp('ler!','g-g')
+        ),
+        React.createElement('div',{className:'ov-sub'},'Google Search\'e ulaştın.'),
+        React.createElement('div',{className:'ov-score-wrap'},
+          React.createElement('div',{className:'ov-score'},score),
+          React.createElement('div',{className:'ov-lbl'},'puan'),
+        ),
+        React.createElement('div',{className:'ov-btns'},
+          React.createElement('button',{className:'o-btn ghost',onClick:()=>C(true)},'Devam'),
+          React.createElement('button',{className:'o-btn primary',onClick:reset},'Yenile'),
+        )
+      )
+    ):null,
+
+    over?React.createElement('div',{className:'overlay'},
+      React.createElement('div',{className:'overlay-card'},
+        React.createElement('div',{className:'ov-emoji'},'🪨'),
+        React.createElement('div',{className:'ov-title'},'Oyun Bitti'),
+        React.createElement('div',{className:'ov-sub'},'Hareket kalmadı.'),
+        React.createElement('div',{className:'ov-score-wrap'},
+          React.createElement('div',{className:'ov-score'},score),
+          React.createElement('div',{className:'ov-lbl'},'puan'),
+        ),
+        React.createElement('div',{className:'ov-btns'},
+          React.createElement('button',{className:'o-btn primary',onClick:reset},'Tekrar Oyna'),
+        )
+      )
+    ):null,
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+</body>
+</html>
