@@ -1,159 +1,168 @@
-git init<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Google 2048</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
+    /* ─────────────────────────────────────────────
+       RESET & TOKENS
+    ───────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #f5f5f5;
-      --surface: #ffffff;
-      --grid-bg: #e0e0e0;
-      --cell-empty: #ebebeb;
-      --text-primary: #1a1a1a;
-      --text-muted: #aaa;
-      --shadow-lg: 0 8px 32px rgba(0,0,0,0.10);
-      --radius: 18px;
-      --tile-size: 64px;
-      --gap: 10px;
+      /* colours */
+      --bg:          #f4f4f4;
+      --surface:     #ffffff;
+      --grid-bg:     #dcdcdc;
+      --cell-empty:  #e8e8e8;
+      --text:        #111111;
+      --muted:       #b0b0b0;
+
+      /* shadows */
+      --sh:    0 2px 8px  rgba(0,0,0,0.08);
+      --sh-lg: 0 10px 40px rgba(0,0,0,0.12);
+
+      /* shape */
+      --radius: 16px;
+
+      /* ── GRID CONFIG ──────────────────────────
+         Change GRID_SIZE here (JS mirrors this).
+         Tile size is computed to always fit screen.
+      ──────────────────────────────────────────── */
+      --GRID: 4;                   /* mirror of JS GRID_SIZE */
+      --gap:  10px;
+      --tile: 64px;                /* overridden by JS for mobile */
     }
 
     [data-theme="dark"] {
-      --bg: #0d0d0d;
-      --surface: #161616;
-      --grid-bg: #1e1e1e;
-      --cell-empty: #222;
-      --text-primary: #f0f0f0;
-      --text-muted: #444;
-      --shadow-lg: 0 8px 40px rgba(0,0,0,0.6);
+      --bg:         #0c0c0c;
+      --surface:    #181818;
+      --grid-bg:    #1d1d1d;
+      --cell-empty: #222222;
+      --text:       #eeeeee;
+      --muted:      #3e3e3e;
+      --sh:    0 2px 8px  rgba(0,0,0,0.5);
+      --sh-lg: 0 10px 48px rgba(0,0,0,0.7);
+    }
+
+    /* ─────────────────────────────────────────────
+       LAYOUT
+    ───────────────────────────────────────────── */
+    html, body {
+      height: 100%;
+      overflow-x: hidden;
     }
 
     body {
       font-family: 'DM Sans', system-ui, sans-serif;
       background: var(--bg);
-      color: var(--text-primary);
-      min-height: 100vh;
+      color: var(--text);
+      min-height: 100svh;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      transition: background 0.4s, color 0.4s;
-      overflow-x: hidden;
+      transition: background .35s, color .35s;
+      -webkit-tap-highlight-color: transparent;
     }
 
-    [data-theme="dark"] body::after {
+    /* dark mode ambient glow */
+    [data-theme="dark"] body::before {
       content: '';
-      position: fixed;
-      inset: 0;
+      position: fixed; inset: 0;
       background:
-        radial-gradient(ellipse 70% 50% at 25% 20%, rgba(66,133,244,0.05) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(234,67,53,0.04) 0%, transparent 60%);
-      pointer-events: none;
-      z-index: 0;
+        radial-gradient(ellipse 65% 45% at 20% 15%, rgba(66,133,244,.06) 0%, transparent 60%),
+        radial-gradient(ellipse 55% 55% at 85% 85%, rgba(234,67,53,.05)  0%, transparent 60%);
+      pointer-events: none; z-index: 0;
     }
 
     #root {
-      position: relative;
-      z-index: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 28px 0 48px;
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 24px 16px 40px;
       gap: 0;
+      width: 100%;
     }
 
-    /* ── Header ─────────────────────────── */
+    /* ─────────────────────────────────────────────
+       HEADER
+    ───────────────────────────────────────────── */
     .header {
-      width: 316px;
+      width: var(--board-width, 316px);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 18px;
+      margin-bottom: 16px;
     }
 
     .title {
-      font-size: 19px;
-      font-weight: 600;
-      letter-spacing: -0.3px;
+      font-size: 19px; font-weight: 600; letter-spacing: -.3px;
+      display: flex; align-items: center; gap: 0;
     }
-
     .g-b { color: #4285f4; }
     .g-r { color: #ea4335; }
     .g-y { color: #fbbc05; }
     .g-g { color: #34a853; }
 
-    .header-right { display: flex; align-items: center; gap: 12px; }
+    /* ─── right cluster ─── */
+    .header-right { display: flex; align-items: center; gap: 10px; }
 
     .scores { display: flex; align-items: center; gap: 10px; }
-
     .score-pill { display: flex; flex-direction: column; align-items: flex-end; }
     .score-pill .lbl {
-      font-size: 8px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.9px;
-      color: var(--text-muted);
-      line-height: 1;
+      font-size: 8px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: 1px;
+      color: var(--muted); line-height: 1;
     }
-    .score-pill .val {
-      font-size: 17px;
-      font-weight: 600;
-      line-height: 1.2;
-    }
+    .score-pill .val { font-size: 17px; font-weight: 600; line-height: 1.2; }
+    .divider { width: 1px; height: 26px; background: var(--grid-bg); }
 
-    .divider {
-      width: 1px;
-      height: 26px;
-      background: var(--grid-bg);
-    }
-
+    /* ─── THEME BUTTON ─── */
     .theme-btn {
-      width: 28px;
-      height: 28px;
-      border: none;
-      background: none;
+      width: 34px; height: 34px;
+      border: 1.5px solid var(--grid-bg);
+      border-radius: 10px;
+      background: var(--surface);
       cursor: pointer;
-      color: var(--text-muted);
-      font-size: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 7px;
-      transition: color 0.2s, background 0.2s;
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color .2s, background .2s, transform .15s;
       padding: 0;
-      line-height: 1;
+      box-shadow: var(--sh);
     }
-    .theme-btn:hover { color: var(--text-primary); background: var(--grid-bg); }
+    .theme-btn:hover  { border-color: var(--muted); transform: scale(1.06); }
+    .theme-btn:active { transform: scale(0.94); }
+    /* SVG icons inside */
+    .theme-btn svg { width: 17px; height: 17px; display: block; }
 
-    /* ── Progress line ───────────────────── */
+    /* ─────────────────────────────────────────────
+       PROGRESS LINE  (2px, no labels)
+    ───────────────────────────────────────────── */
     .progress-line {
-      width: 316px;
+      width: var(--board-width, 316px);
       height: 2px;
       background: var(--cell-empty);
-      border-radius: 99px;
-      overflow: hidden;
+      border-radius: 99px; overflow: hidden;
       margin-bottom: 12px;
     }
-
     .progress-fill {
-      height: 100%;
-      border-radius: 99px;
-      background: linear-gradient(90deg, #4285f4 0%, #ea4335 33%, #fbbc05 66%, #34a853 100%);
+      height: 100%; border-radius: 99px;
+      background: linear-gradient(90deg,#4285f4 0%,#ea4335 33%,#fbbc05 66%,#34a853 100%);
       background-size: 300% 100%;
       animation: shimmer 3s linear infinite;
-      transition: width 0.5s cubic-bezier(.34,1.56,.64,1);
+      transition: width .5s cubic-bezier(.34,1.56,.64,1);
     }
-
     @keyframes shimmer {
       0%   { background-position: 300% 0; }
-      100% { background-position: -300% 0; }
+      100% { background-position:-300% 0; }
     }
 
-    /* ── Grid ───────────────────────────── */
+    /* ─────────────────────────────────────────────
+       GRID
+    ───────────────────────────────────────────── */
     .grid-container {
       background: var(--grid-bg);
       border-radius: var(--radius);
@@ -161,176 +170,203 @@ git init<!DOCTYPE html>
       position: relative;
       touch-action: none;
       user-select: none;
-      box-shadow: var(--shadow-lg);
+      box-shadow: var(--sh-lg);
+      /* exact size set by JS via inline style */
     }
 
     [data-theme="dark"] .grid-container {
-      background: linear-gradient(145deg, #1f1f1f 0%, #181818 60%, #1b1b1b 100%);
+      background: linear-gradient(145deg, #202020 0%, #181818 55%, #1c1c1c 100%);
       box-shadow:
-        0 0 0 1px rgba(255,255,255,0.04),
-        0 16px 56px rgba(0,0,0,0.75);
+        0 0 0 1px rgba(255,255,255,.04),
+        0 18px 60px rgba(0,0,0,.8);
     }
 
+    /* background ghost cells */
     .grid-bg-cells {
       display: grid;
-      grid-template-columns: repeat(4, var(--tile-size));
-      grid-template-rows: repeat(4, var(--tile-size));
       gap: var(--gap);
+      /* columns set via JS inline style */
     }
-
     .cell-empty {
-      width: var(--tile-size);
-      height: var(--tile-size);
+      width:  var(--tile);
+      height: var(--tile);
       background: var(--cell-empty);
       border-radius: 9px;
     }
+    [data-theme="dark"] .cell-empty { background: rgba(255,255,255,.025); }
 
-    [data-theme="dark"] .cell-empty { background: rgba(255,255,255,0.025); }
-
-    /* ── Tile layer ─────────────────────── */
+    /* ─────────────────────────────────────────────
+       TILE LAYER  — absolutely positioned, keyed by id
+    ───────────────────────────────────────────── */
     .tile-layer {
       position: absolute;
-      top: var(--gap);
-      left: var(--gap);
+      top: var(--gap); left: var(--gap);
       pointer-events: none;
     }
 
     .tile {
-      width: var(--tile-size);
-      height: var(--tile-size);
-      border-radius: 9px;
       position: absolute;
-      background: var(--surface);
-      box-shadow: 0 2px 10px rgba(0,0,0,0.12);
-      overflow: hidden;
-      transition: left 0.11s cubic-bezier(.4,0,.2,1), top 0.11s cubic-bezier(.4,0,.2,1);
-    }
 
-    [data-theme="dark"] .tile {
-      background: #252525;
-      box-shadow: 0 2px 14px rgba(0,0,0,0.55);
-    }
+      /* ── STRICT 1:1 SQUARE LOCK ───────────────────────────
+         Width AND height are both pinned to --tile.
+         min/max clamps prevent any flex/grid parent from
+         ever stretching or squashing the tile.
+      ─────────────────────────────────────────────────────── */
+      width:     var(--tile);
+      height:    var(--tile);
+      min-width: var(--tile);
+      max-width: var(--tile);
+      min-height:var(--tile);
+      max-height:var(--tile);
 
-    .tile img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      image-rendering: pixelated;
-      image-rendering: crisp-edges;
-      padding: 5px;
-    }
-
-    .tile.new    { animation: tileIn  0.16s cubic-bezier(.34,1.56,.64,1) both; }
-    .tile.merged { animation: tilePop 0.20s cubic-bezier(.34,1.56,.64,1) both; z-index: 10; }
-
-    @keyframes tileIn  { from { transform:scale(0); opacity:0; } to { transform:scale(1); opacity:1; } }
-    @keyframes tilePop { 0%{transform:scale(1);} 45%{transform:scale(1.22);} 100%{transform:scale(1);} }
-
-    /* ── New game ───────────────────────── */
-    .new-btn {
-      margin-top: 16px;
-      padding: 0 22px;
-      height: 36px;
-      border: none;
-      border-radius: 99px;
-      background: var(--text-primary);
-      color: var(--bg);
-      font-family: inherit;
-      font-size: 12px;
-      font-weight: 500;
-      letter-spacing: 0.2px;
-      cursor: pointer;
-      transition: opacity 0.15s, transform 0.15s;
-    }
-    .new-btn:hover  { opacity: 0.78; }
-    .new-btn:active { transform: scale(0.95); }
-
-    /* ── Overlays ───────────────────────── */
-    .overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.42);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
+      /* layout: centre the image inside */
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 100;
-      animation: fadeIn 0.2s ease;
+
+      border-radius: 9px;
+      background: var(--surface);
+      box-shadow: var(--sh);
+      overflow: hidden;
+
+      /* sliding animation */
+      transition:
+        left .12s cubic-bezier(.4,0,.2,1),
+        top  .12s cubic-bezier(.4,0,.2,1);
+
+      /* GPU composite layer — prevents subpixel bleed */
+      will-change: left, top;
+      transform: translateZ(0);
+    }
+    [data-theme="dark"] .tile {
+      background: #262626;
+      box-shadow: 0 3px 14px rgba(0,0,0,.55);
     }
 
+    /* ── IMAGE RENDERING STANDARD ─────────────────────────
+       All PNGs are 1:1 square.
+       object-fit:contain  → no distortion, letterbox if needed
+       aspect-ratio:1/1    → browser reserves square slot before
+                             the image loads → zero layout shift
+       width/height 100%   → fills the flex cell completely
+       padding             → optical breathing room
+       image-rendering     → crisp pixel art, no blur on scale
+    ─────────────────────────────────────────────────────── */
+    .tile img {
+      display: block;
+      width:  100%;
+      height: 100%;
+      aspect-ratio: 1 / 1;          /* layout-shift guard          */
+      object-fit: contain;           /* no squash/stretch           */
+      object-position: center;       /* always centred              */
+      padding: 6px;                  /* optical margin inside tile  */
+      flex-shrink: 0;                /* never compress inside flex  */
+
+      /* pixel-perfect rendering pipeline */
+      image-rendering: -webkit-optimize-contrast; /* Safari        */
+      image-rendering: pixelated;                  /* Chrome / FF   */
+      image-rendering: crisp-edges;               /* spec fallback  */
+
+      /* suppress subpixel AA during CSS transforms */
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+
+    /* entry & merge animations */
+    .tile.is-new    { animation: tileIn  .18s cubic-bezier(.34,1.56,.64,1) both; }
+    .tile.is-merged { animation: tilePop .22s cubic-bezier(.34,1.56,.64,1) both; z-index: 10; }
+
+    @keyframes tileIn  {
+      from { transform: translateZ(0) scale(0); opacity: 0; }
+      to   { transform: translateZ(0) scale(1); opacity: 1; }
+    }
+    @keyframes tilePop {
+      0%   { transform: translateZ(0) scale(1);    }
+      45%  { transform: translateZ(0) scale(1.22); }
+      100% { transform: translateZ(0) scale(1);    }
+    }
+
+    /* ─────────────────────────────────────────────
+       NEW GAME BUTTON
+    ───────────────────────────────────────────── */
+    .new-btn {
+      margin-top: 16px;
+      padding: 0 24px; height: 36px;
+      border: none; border-radius: 99px;
+      background: var(--text); color: var(--bg);
+      font-family: inherit; font-size: 12px; font-weight: 500;
+      letter-spacing: .2px; cursor: pointer;
+      transition: opacity .15s, transform .15s;
+      box-shadow: var(--sh);
+    }
+    .new-btn:hover  { opacity: .78; }
+    .new-btn:active { transform: scale(.95); }
+
+    /* ─────────────────────────────────────────────
+       OVERLAYS
+    ───────────────────────────────────────────── */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.44);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100;
+      animation: fadeIn .2s ease;
+    }
     @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
 
     .overlay-card {
       background: var(--surface);
       border-radius: 22px;
       padding: 38px 32px 30px;
-      max-width: 268px;
-      width: 88%;
+      max-width: 272px; width: 90%;
       text-align: center;
-      box-shadow: 0 24px 64px rgba(0,0,0,0.2);
-      animation: cardUp 0.28s cubic-bezier(.34,1.56,.64,1) both;
+      box-shadow: 0 24px 64px rgba(0,0,0,.22);
+      animation: cardUp .28s cubic-bezier(.34,1.56,.64,1) both;
     }
-
     [data-theme="dark"] .overlay-card {
       background: #1c1c1c;
-      box-shadow: 0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05);
+      box-shadow: 0 24px 64px rgba(0,0,0,.72), 0 0 0 1px rgba(255,255,255,.05);
+    }
+    @keyframes cardUp {
+      from { transform: translateY(22px) scale(.93); opacity: 0; }
+      to   { transform: none; opacity: 1; }
     }
 
-    @keyframes cardUp { from{transform:translateY(22px) scale(0.93);opacity:0;} to{transform:none;opacity:1;} }
-
-    .ov-emoji { font-size: 42px; margin-bottom: 12px; }
-    .ov-title { font-size: 21px; font-weight: 600; letter-spacing: -0.4px; margin-bottom: 6px; }
-    .ov-sub   { font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 20px; }
-
+    .ov-emoji { font-size: 44px; margin-bottom: 12px; }
+    .ov-title { font-size: 22px; font-weight: 600; letter-spacing: -.4px; margin-bottom: 6px; }
+    .ov-sub   { font-size: 13px; color: var(--muted); line-height: 1.55; margin-bottom: 20px; }
     .ov-score-wrap { margin-bottom: 26px; }
-    .ov-score      { font-size: 38px; font-weight: 600; letter-spacing: -1px; line-height: 1; }
-    .ov-lbl        { font-size: 10px; color: var(--text-muted); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.8px; }
-
-    .ov-btns { display: flex; gap: 8px; justify-content: center; }
+    .ov-score { font-size: 40px; font-weight: 600; letter-spacing: -1px; line-height: 1; }
+    .ov-lbl   { font-size: 10px; color: var(--muted); margin-top: 3px; text-transform: uppercase; letter-spacing: .8px; }
+    .ov-btns  { display: flex; gap: 8px; justify-content: center; }
 
     .o-btn {
-      flex: 1;
-      height: 38px;
-      border: none;
-      border-radius: 99px;
-      font-family: inherit;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: opacity 0.15s, transform 0.15s;
-      max-width: 116px;
+      flex: 1; max-width: 118px; height: 38px;
+      border: none; border-radius: 99px;
+      font-family: inherit; font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: opacity .15s, transform .15s;
     }
-    .o-btn:hover  { opacity: 0.78; }
-    .o-btn:active { transform: scale(0.95); }
-    .o-btn.primary { background: var(--text-primary); color: var(--bg); }
-    .o-btn.ghost   { background: var(--grid-bg); color: var(--text-primary); }
+    .o-btn:hover  { opacity: .78; }
+    .o-btn:active { transform: scale(.95); }
+    .o-btn.primary { background: var(--text);    color: var(--bg); }
+    .o-btn.ghost   { background: var(--grid-bg); color: var(--text); }
 
-    /* ── Toast ──────────────────────────── */
+    /* ─────────────────────────────────────────────
+       TOAST
+    ───────────────────────────────────────────── */
     .toast {
-      position: fixed;
-      bottom: 26px;
-      left: 50%;
+      position: fixed; bottom: 26px; left: 50%;
       transform: translateX(-50%);
-      background: var(--text-primary);
-      color: var(--bg);
-      padding: 7px 16px;
-      border-radius: 99px;
-      font-size: 11px;
-      font-weight: 500;
-      z-index: 200;
-      pointer-events: none;
-      white-space: nowrap;
-      animation: tIn 0.2s cubic-bezier(.34,1.56,.64,1), tOut 0.3s ease 1.7s forwards;
+      background: var(--text); color: var(--bg);
+      padding: 7px 16px; border-radius: 99px;
+      font-size: 11px; font-weight: 500;
+      z-index: 200; pointer-events: none; white-space: nowrap;
+      animation: tIn .2s cubic-bezier(.34,1.56,.64,1), tOut .3s ease 1.7s forwards;
     }
-
     @keyframes tIn  { from{opacity:0;transform:translateX(-50%) translateY(10px);}to{opacity:1;transform:translateX(-50%) translateY(0);} }
     @keyframes tOut { to{opacity:0;} }
-
-    @media (max-width: 360px) {
-      :root { --tile-size: 56px; --gap: 8px; }
-      .header, .progress-line { width: calc(4*56px + 3*8px + 2*8px); }
-    }
   </style>
 </head>
 <body>
@@ -339,218 +375,466 @@ git init<!DOCTYPE html>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script>
-const { useState, useEffect, useRef, useCallback } = React;
+'use strict';
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
-const SIZE = 4;
-const WIN  = 11;
-const BASE = 'public/assets/';
-const IMGS = [null,'1.png','2.png','3.png','4.png','5.png','6.png','7.png','8.png','9.png','10.png','11.png'];
-const LS   = 'g2048zen';
+/* ═══════════════════════════════════════════════════════
+   ▸ CONFIGURATION — change only these two values
+═══════════════════════════════════════════════════════ */
+const GRID_SIZE  = 4;   // ← 4x4 or 5x5 or any NxN
+const WIN_VALUE  = 11;  // tile value that triggers win
 
-let _n = 1;
-const nid = () => _n++;
+/* ═══════════════════════════════════════════════════════
+   ▸ ASSET MAP
+   Add or remove entries freely.
+   Keys are tile values; values are filenames under /assets/.
+═══════════════════════════════════════════════════════ */
+const ASSET_PATH = 'public/assets/';
+const ASSET_MAP  = {
+  1:'1.svg', 2:'2.svg', 3:'3.svg', 4:'4.svg',
+  5:'5.svg', 6:'6.svg', 7:'7.svg', 8:'8.svg',
+  9:'9.svg', 10:'10.svg', 11:'11.svg',
+};
+const assetFor = v => ASSET_PATH + (ASSET_MAP[Math.min(v, WIN_VALUE)] ?? `${v}.png`);
 
-function emptyGrid()   { return Array.from({length:SIZE},()=>Array(SIZE).fill(null)); }
-function addRandom(g)  {
-  const e=[]; for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(!g[r][c])e.push([r,c]);
-  if(!e.length) return g;
-  const [r,c]=e[Math.floor(Math.random()*e.length)], n=g.map(x=>[...x]);
-  n[r][c]={id:nid(),value:1,isNew:true,isMerged:false}; return n;
+/* ═══════════════════════════════════════════════════════
+   ▸ TILE SIZE — computed from viewport so grid never overflows
+═══════════════════════════════════════════════════════ */
+const GAP = 10; // px
+
+function computeTileSize() {
+  const maxW = Math.min(window.innerWidth - 32, 480);
+  const maxH = window.innerHeight * 0.55;
+  const byW  = Math.floor((maxW  - GAP * (GRID_SIZE + 1)) / GRID_SIZE);
+  const byH  = Math.floor((maxH  - GAP * (GRID_SIZE + 1)) / GRID_SIZE);
+  return Math.max(44, Math.min(byW, byH, 72));
 }
-function init()        { return addRandom(addRandom(emptyGrid())); }
+
+/* ═══════════════════════════════════════════════════════
+   ▸ UNIQUE ID  — Date.now() + random avoids collisions
+     even when tiles are created in the same millisecond.
+═══════════════════════════════════════════════════════ */
+const uid = () => `${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+
+/* ═══════════════════════════════════════════════════════
+   ▸ PURE GAME LOGIC
+═══════════════════════════════════════════════════════ */
+const N = GRID_SIZE;
+
+function emptyGrid() {
+  return Array.from({ length: N }, () => Array(N).fill(null));
+}
+
+function addRandom(grid) {
+  const empties = [];
+  for (let r = 0; r < N; r++)
+    for (let c = 0; c < N; c++)
+      if (!grid[r][c]) empties.push([r, c]);
+  if (!empties.length) return grid;
+  const [r, c] = empties[Math.floor(Math.random() * empties.length)];
+  const next = grid.map(row => [...row]);
+  next[r][c] = { id: uid(), value: 1, isNew: true, isMerged: false };
+  return next;
+}
+
+function initGrid() {
+  return addRandom(addRandom(emptyGrid()));
+}
 
 function slideRow(row) {
-  const t=row.filter(Boolean); let sc=0,res=[],i=0;
-  while(i<t.length){
-    if(i+1<t.length&&t[i].value===t[i+1].value){
-      const v=t[i].value+1; res.push({id:nid(),value:v,isNew:false,isMerged:true}); sc+=v; i+=2;
-    } else { res.push({...t[i],isNew:false,isMerged:false}); i++; }
+  const tiles = row.filter(Boolean);
+  let score = 0, result = [], i = 0;
+  while (i < tiles.length) {
+    if (i + 1 < tiles.length && tiles[i].value === tiles[i+1].value) {
+      const v = tiles[i].value + 1;
+      result.push({ id: uid(), value: v, isNew: false, isMerged: true });
+      score += v;
+      i += 2;
+    } else {
+      result.push({ ...tiles[i], isNew: false, isMerged: false });
+      i++;
+    }
   }
-  while(res.length<SIZE) res.push(null);
-  return {row:res,sc};
+  while (result.length < N) result.push(null);
+  return { row: result, score };
 }
 
-function tr(g) { return Array.from({length:SIZE},(_,r)=>Array.from({length:SIZE},(_,c)=>g[c][r])); }
-
-function rot(g,d) {
-  if(d==='left')  return g.map(r=>[...r]);
-  if(d==='right') return g.map(r=>[...r].reverse());
-  if(d==='up')    return tr(g);
-  if(d==='down')  return tr(g).map(r=>[...r].reverse());
-}
-function unrot(g,d) {
-  if(d==='left')  return g;
-  if(d==='right') return g.map(r=>[...r].reverse());
-  if(d==='up')    return tr(g);
-  if(d==='down')  return tr(g.map(r=>[...r].reverse()));
+function transpose(g) {
+  return Array.from({ length: N }, (_, r) =>
+    Array.from({ length: N }, (_, c) => g[c][r])
+  );
 }
 
-function doMove(g,d) {
-  const r=rot(g,d); let tot=0,ch=false;
-  const mv=r.map(row=>{
-    const {row:s,sc}=slideRow(row); tot+=sc;
-    if(!ch) for(let c=0;c<SIZE;c++){const a=row[c],b=s[c];if((a===null)!==(b===null)||(a&&b&&a.id!==b.id)){ch=true;break;}}
-    return s;
+function rotateForDir(g, dir) {
+  if (dir === 'left')  return g.map(r => [...r]);
+  if (dir === 'right') return g.map(r => [...r].reverse());
+  if (dir === 'up')    return transpose(g);
+  if (dir === 'down')  return transpose(g).map(r => [...r].reverse());
+}
+
+function unrotateForDir(g, dir) {
+  if (dir === 'left')  return g;
+  if (dir === 'right') return g.map(r => [...r].reverse());
+  if (dir === 'up')    return transpose(g);
+  if (dir === 'down')  return transpose(g.map(r => [...r].reverse()));
+}
+
+function applyMove(grid, dir) {
+  const rotated = rotateForDir(grid, dir);
+  let totalScore = 0, changed = false;
+
+  const moved = rotated.map((row, ri) => {
+    const { row: slid, score } = slideRow(row);
+    totalScore += score;
+    if (!changed) {
+      for (let c = 0; c < N; c++) {
+        const a = row[c], b = slid[c];
+        if ((a === null) !== (b === null)) { changed = true; break; }
+        if (a && b && a.id !== b.id)       { changed = true; break; }
+      }
+    }
+    return slid;
   });
-  return {grid:unrot(mv,d),sc:tot,ch};
+
+  return { grid: unrotateForDir(moved, dir), score: totalScore, changed };
 }
 
-function won(g)  { return g.some(r=>r.some(t=>t&&t.value>=WIN)); }
-function live(g) {
-  for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++){
-    if(!g[r][c]) return true;
-    if(c<SIZE-1&&g[r][c].value===g[r][c+1]?.value) return true;
-    if(r<SIZE-1&&g[r][c].value===g[r+1]?.[c]?.value) return true;
-  } return false;
-}
-function clr(g) { return g.map(r=>r.map(t=>t?{...t,isNew:false,isMerged:false}:null)); }
-
-function save(s) { try{localStorage.setItem(LS,JSON.stringify(s));}catch{} }
-function load()  { try{const r=localStorage.getItem(LS);return r?JSON.parse(r):null;}catch{return null;} }
-
-function Tile({tile,row,col}) {
-  const sz=64,gap=10;
-  return React.createElement('div',{
-    className:`tile${tile.isNew?' new':''}${tile.isMerged?' merged':''}`,
-    style:{top:row*(sz+gap),left:col*(sz+gap)},
-  }, React.createElement('img',{src:BASE+IMGS[Math.min(tile.value,WIN)],alt:'',draggable:false}));
+function hasWon(grid) {
+  return grid.some(row => row.some(t => t && t.value >= WIN_VALUE));
 }
 
+function canMove(grid) {
+  for (let r = 0; r < N; r++)
+    for (let c = 0; c < N; c++) {
+      if (!grid[r][c]) return true;
+      const v = grid[r][c].value;
+      if (c < N-1 && grid[r][c+1]?.value === v) return true;
+      if (r < N-1 && grid[r+1]?.[c]?.value === v) return true;
+    }
+  return false;
+}
+
+function clearFlags(grid) {
+  return grid.map(row =>
+    row.map(t => t ? { ...t, isNew: false, isMerged: false } : null)
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   ▸ PERSISTENCE
+═══════════════════════════════════════════════════════ */
+const LS_STATE = 'g2048_state_v3';
+const LS_BEST  = 'g2048_best_v3';
+const LS_THEME = 'g2048_theme';
+
+function saveState(s) { try { localStorage.setItem(LS_STATE, JSON.stringify(s)); } catch {} }
+function loadState()  { try { const r = localStorage.getItem(LS_STATE); return r ? JSON.parse(r) : null; } catch { return null; } }
+
+/* ═══════════════════════════════════════════════════════
+   ▸ SVG ICONS for theme button
+═══════════════════════════════════════════════════════ */
+const SunIcon = () => React.createElement('svg', {
+  viewBox: '0 0 24 24', fill: 'none',
+  stroke: '#fbbc05', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round',
+},
+  React.createElement('circle', { cx: 12, cy: 12, r: 5 }),
+  React.createElement('line', { x1: 12, y1: 1,  x2: 12, y2: 3  }),
+  React.createElement('line', { x1: 12, y1: 21, x2: 12, y2: 23 }),
+  React.createElement('line', { x1: 4.22,  y1: 4.22,  x2: 5.64,  y2: 5.64  }),
+  React.createElement('line', { x1: 18.36, y1: 18.36, x2: 19.78, y2: 19.78 }),
+  React.createElement('line', { x1: 1,  y1: 12, x2: 3,  y2: 12 }),
+  React.createElement('line', { x1: 21, y1: 12, x2: 23, y2: 12 }),
+  React.createElement('line', { x1: 4.22,  y1: 19.78, x2: 5.64,  y2: 18.36 }),
+  React.createElement('line', { x1: 18.36, y1: 5.64,  x2: 19.78, y2: 4.22  }),
+);
+
+const MoonIcon = () => React.createElement('svg', {
+  viewBox: '0 0 24 24', fill: 'none',
+  stroke: '#9aa0a6', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round',
+},
+  React.createElement('path', { d: 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z' }),
+);
+
+/* ═══════════════════════════════════════════════════════
+   ▸ TILE COMPONENT
+   key is always tile.id — prevents ghost tile bug
+═══════════════════════════════════════════════════════ */
+function Tile({ tile, row, col, tileSize }) {
+  const step = tileSize + GAP;
+  return React.createElement('div', {
+    className: `tile${tile.isNew ? ' is-new' : ''}${tile.isMerged ? ' is-merged' : ''}`,
+    style: {
+      '--tile': tileSize + 'px',
+      top:  row * step,
+      left: col * step,
+      width:  tileSize,
+      height: tileSize,
+    },
+  },
+    React.createElement('img', {
+      // Tailwind utility classes:
+      //   aspect-square  → enforces 1:1 before load (no layout shift)
+      //   w-full h-full  → fills the flex container completely
+      //   object-contain → no distortion on non-square source images
+      //   flex-shrink-0  → never compressed by parent flex
+      className: 'w-full h-full aspect-square object-contain p-3 flex items-center justify-center',
+      src:       assetFor(tile.value),
+      alt:       String(tile.value),
+      draggable: false,
+      // Explicit width/height attributes → browser allocates space
+      // before image loads → zero cumulative layout shift (CLS = 0)
+      width:  tileSize,
+      height: tileSize,
+    })
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   ▸ APP
+═══════════════════════════════════════════════════════ */
 function App() {
-  const sv=load();
-  const [grid,  G]  = useState(()=>sv?.grid||init());
-  const [score, S]  = useState(()=>sv?.score||0);
-  const [best,  B]  = useState(()=>{try{return parseInt(localStorage.getItem('g2048best')||'0');}catch{return 0;}});
-  const [winState,W]= useState(()=>sv?.win||false);
-  const [over,  O]  = useState(()=>sv?.over||false);
-  const [cont,  C]  = useState(()=>sv?.cont||false);
-  const [theme, T]  = useState(()=>{try{return localStorage.getItem('g2048theme')||'dark';}catch{return 'dark';}});
-  const [toast, ST] = useState(null);
-  const tmr = useRef(null);
+  const sv = loadState();
 
-  useEffect(()=>{ document.documentElement.setAttribute('data-theme',theme); try{localStorage.setItem('g2048theme',theme);}catch{} },[theme]);
-  useEffect(()=>{ save({grid,score,win:winState,over,cont}); },[grid,score,winState,over,cont]);
-  useEffect(()=>{ if(score>best){B(score);try{localStorage.setItem('g2048best',String(score));}catch{}} },[score]);
+  const [grid,     setGrid]     = useState(() => sv?.grid     || initGrid());
+  const [score,    setScore]    = useState(() => sv?.score    || 0);
+  const [best,     setBest]     = useState(() => { try { return parseInt(localStorage.getItem(LS_BEST) || '0'); } catch { return 0; } });
+  const [winState, setWin]      = useState(() => sv?.win      || false);
+  const [over,     setOver]     = useState(() => sv?.over     || false);
+  const [cont,     setCont]     = useState(() => sv?.cont     || false);
+  const [theme,    setTheme]    = useState(() => { try { return localStorage.getItem(LS_THEME) || 'dark'; } catch { return 'dark'; } });
+  const [toast,    setToast]    = useState(null);
+  const [tileSize, setTileSize] = useState(computeTileSize);
+  const toastTimer = useRef(null);
 
-  const toast_=useCallback(msg=>{
-    if(tmr.current)clearTimeout(tmr.current);
-    ST(msg); tmr.current=setTimeout(()=>ST(null),2000);
-  },[]);
+  /* ── responsive tile size ── */
+  useEffect(() => {
+    const onResize = () => setTileSize(computeTileSize());
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
-  const move=useCallback(d=>{
-    if(over||(winState&&!cont)) return;
-    G(prev=>{
-      const {grid:mv,sc,ch}=doMove(clr(prev),d);
-      if(!ch){toast_('Hareket yok');return prev;}
-      const nxt=addRandom(mv);
-      if(!winState&&won(nxt)) W(true);
-      if(!live(nxt)) O(true);
-      S(s=>s+sc);
-      return nxt;
+  /* ── CSS var for board width (header / progress align) ── */
+  useEffect(() => {
+    const boardW = N * tileSize + (N - 1) * GAP + GAP * 2;
+    document.documentElement.style.setProperty('--board-width', boardW + 'px');
+    document.documentElement.style.setProperty('--tile', tileSize + 'px');
+    document.documentElement.style.setProperty('--gap', GAP + 'px');
+  }, [tileSize]);
+
+  /* ── theme ── */
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem(LS_THEME, theme); } catch {}
+  }, [theme]);
+
+  /* ── persist ── */
+  useEffect(() => {
+    saveState({ grid, score, win: winState, over, cont });
+  }, [grid, score, winState, over, cont]);
+
+  /* ── best score ── */
+  useEffect(() => {
+    if (score > best) {
+      setBest(score);
+      try { localStorage.setItem(LS_BEST, String(score)); } catch {}
+    }
+  }, [score]);
+
+  /* ── toast ── */
+  const showToast = useCallback(msg => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast(msg);
+    toastTimer.current = setTimeout(() => setToast(null), 2000);
+  }, []);
+
+  /* ── move handler ── */
+  const move = useCallback(dir => {
+    if (over || (winState && !cont)) return;
+    setGrid(prev => {
+      const { grid: moved, score: gained, changed } = applyMove(clearFlags(prev), dir);
+      if (!changed) { showToast('Hareket yok'); return prev; }
+      const next = addRandom(moved);
+      if (!winState && hasWon(next)) setWin(true);
+      if (!canMove(next)) setOver(true);
+      setScore(s => s + gained);
+      return next;
     });
-  },[over,winState,cont,toast_]);
+  }, [over, winState, cont, showToast]);
 
-  useEffect(()=>{
-    const MAP={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down',a:'left',d:'right',w:'up',s:'down'};
-    const h=e=>{const d=MAP[e.key];if(d){e.preventDefault();move(d);}};
-    window.addEventListener('keydown',h);
-    return ()=>window.removeEventListener('keydown',h);
-  },[move]);
+  /* ── keyboard ── */
+  useEffect(() => {
+    const MAP = {
+      ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down',
+      a:'left', d:'right', w:'up', s:'down',
+    };
+    const handler = e => { const d = MAP[e.key]; if (d) { e.preventDefault(); move(d); } };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [move]);
 
-  const touch=useRef(null);
-  const ts=e=>{const t=e.touches[0];touch.current={x:t.clientX,y:t.clientY};};
-  const te=e=>{
-    if(!touch.current)return;
-    const t=e.changedTouches[0],dx=t.clientX-touch.current.x,dy=t.clientY-touch.current.y;
-    if(Math.max(Math.abs(dx),Math.abs(dy))<18)return;
-    move(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'));
-    touch.current=null;
+  /* ── touch / swipe ── */
+  const touchStart = useRef(null);
+  const onTouchStart = e => {
+    const t = e.touches[0];
+    touchStart.current = { x: t.clientX, y: t.clientY };
+  };
+  const onTouchEnd = e => {
+    if (!touchStart.current) return;
+    const t  = e.changedTouches[0];
+    const dx = t.clientX - touchStart.current.x;
+    const dy = t.clientY - touchStart.current.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 18) return;
+    move(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+    touchStart.current = null;
   };
 
-  const reset=()=>{G(init());S(0);W(false);O(false);C(false);};
+  /* ── new game ── */
+  const reset = () => {
+    setGrid(initGrid());
+    setScore(0);
+    setWin(false);
+    setOver(false);
+    setCont(false);
+  };
 
-  const maxV=grid.reduce((m,r)=>r.reduce((mm,t)=>Math.max(mm,t?t.value:0),m),0);
-  const pct=Math.min((maxV/WIN)*100,100);
+  /* ── derived ── */
+  const maxVal  = grid.reduce((m, row) => row.reduce((mm, t) => Math.max(mm, t ? t.value : 0), m), 0);
+  const pct     = Math.min((maxVal / WIN_VALUE) * 100, 100);
+  const boardPx = N * tileSize + (N - 1) * GAP + GAP * 2;   // inner container size
 
-  const tiles=[];
-  for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(grid[r][c]) tiles.push({tile:grid[r][c],row:r,col:c});
+  /* collect tiles — ORDER MATTERS for CSS z-index stability */
+  const allTiles = useMemo(() => {
+    const out = [];
+    for (let r = 0; r < N; r++)
+      for (let c = 0; c < N; c++)
+        if (grid[r][c]) out.push({ tile: grid[r][c], row: r, col: c });
+    return out;
+  }, [grid]);
 
-  const sp=(ch,cls)=>React.createElement('span',{className:cls},ch);
+  /* ── helpers ── */
+  const sp = (ch, cls) => React.createElement('span', { className: cls }, ch);
 
+  const Overlay = ({ children }) =>
+    React.createElement('div', { className: 'overlay' },
+      React.createElement('div', { className: 'overlay-card' }, ...children)
+    );
+
+  /* ═══════════════════════════════════════════
+     RENDER
+  ═══════════════════════════════════════════ */
   return React.createElement(React.Fragment, null,
 
-    React.createElement('div',{className:'header'},
-      React.createElement('div',{className:'title'},
-        sp('G','g-b'),sp('o','g-r'),sp('o','g-y'),sp('g','g-g'),sp('l','g-b'),sp('e','g-r'),
-        React.createElement('span',{style:{color:'var(--text-primary)',marginLeft:4}},'2048'),
+    /* ── header ── */
+    React.createElement('div', { className: 'header' },
+      React.createElement('div', { className: 'title' },
+        sp('G','g-b'), sp('o','g-r'), sp('o','g-y'), sp('g','g-g'), sp('l','g-b'), sp('e','g-r'),
+        React.createElement('span', { style: { color: 'var(--text)', marginLeft: 4 } }, '2048'),
       ),
-      React.createElement('div',{className:'header-right'},
-        React.createElement('div',{className:'scores'},
-          React.createElement('div',{className:'score-pill'},
-            React.createElement('span',{className:'lbl'},'SKOR'),
-            React.createElement('span',{className:'val'},score),
+      React.createElement('div', { className: 'header-right' },
+        React.createElement('div', { className: 'scores' },
+          React.createElement('div', { className: 'score-pill' },
+            React.createElement('span', { className: 'lbl' }, 'SKOR'),
+            React.createElement('span', { className: 'val' }, score),
           ),
-          React.createElement('div',{className:'divider'}),
-          React.createElement('div',{className:'score-pill'},
-            React.createElement('span',{className:'lbl'},'EN İYİ'),
-            React.createElement('span',{className:'val'},best),
+          React.createElement('div', { className: 'divider' }),
+          React.createElement('div', { className: 'score-pill' },
+            React.createElement('span', { className: 'lbl' }, 'EN İYİ'),
+            React.createElement('span', { className: 'val' }, best),
           ),
         ),
-        React.createElement('button',{className:'theme-btn',onClick:()=>T(t=>t==='dark'?'light':'dark')},
-          theme==='dark'?'○':'●'
+        /* ── theme button with clear sun/moon SVG ── */
+        React.createElement('button', {
+          className: 'theme-btn',
+          onClick: () => setTheme(t => t === 'dark' ? 'light' : 'dark'),
+          title: theme === 'dark' ? 'Koyu mod — tıkla: aydınlık' : 'Aydınlık mod — tıkla: koyu',
+          'aria-label': theme === 'dark' ? 'Koyu mod' : 'Aydınlık mod',
+        },
+          theme === 'dark'
+            ? React.createElement(MoonIcon)
+            : React.createElement(SunIcon)
         ),
       )
     ),
 
-    React.createElement('div',{className:'progress-line'},
-      React.createElement('div',{className:'progress-fill',style:{width:`${pct}%`}})
+    /* ── progress line (no labels) ── */
+    React.createElement('div', { className: 'progress-line' },
+      React.createElement('div', { className: 'progress-fill', style: { width: `${pct}%` } })
     ),
 
-    React.createElement('div',{className:'grid-container',onTouchStart:ts,onTouchEnd:te},
-      React.createElement('div',{className:'grid-bg-cells'},
-        ...Array.from({length:SIZE*SIZE},(_,i)=>React.createElement('div',{key:i,className:'cell-empty'}))
+    /* ── grid ── */
+    React.createElement('div', {
+      className: 'grid-container',
+      style: { width: boardPx, height: boardPx },
+      onTouchStart,
+      onTouchEnd,
+    },
+      /* ghost background cells */
+      React.createElement('div', {
+        className: 'grid-bg-cells',
+        style: {
+          gridTemplateColumns: `repeat(${N}, ${tileSize}px)`,
+          gridTemplateRows:    `repeat(${N}, ${tileSize}px)`,
+        },
+      },
+        ...Array.from({ length: N * N }, (_, i) =>
+          React.createElement('div', { key: i, className: 'cell-empty', style: { '--tile': tileSize + 'px' } })
+        )
       ),
-      React.createElement('div',{className:'tile-layer'},
-        ...tiles.map(({tile,row,col})=>React.createElement(Tile,{key:tile.id,tile,row,col}))
-      )
+
+      /* tile layer — each tile keyed by its unique id, never by position */
+      React.createElement('div', { className: 'tile-layer' },
+        ...allTiles.map(({ tile, row, col }) =>
+          React.createElement(Tile, {
+            key:      tile.id,   // ← stable unique id = no ghost tiles
+            tile,
+            row,
+            col,
+            tileSize,
+          })
+        )
+      ),
     ),
 
-    React.createElement('button',{className:'new-btn',onClick:reset},'Yeni Oyun'),
+    /* ── new game ── */
+    React.createElement('button', { className: 'new-btn', onClick: reset }, 'Yeni Oyun'),
 
-    toast?React.createElement('div',{className:'toast'},toast):null,
+    /* ── toast ── */
+    toast ? React.createElement('div', { className: 'toast' }, toast) : null,
 
-    winState&&!cont?React.createElement('div',{className:'overlay'},
-      React.createElement('div',{className:'overlay-card'},
-        React.createElement('div',{className:'ov-emoji'},'🎉'),
-        React.createElement('div',{className:'ov-title'},
-          sp('Teb','g-b'),sp('ri','g-r'),sp('k','g-y'),sp('ler!','g-g')
+    /* ── win overlay ── */
+    winState && !cont ? React.createElement('div', { className: 'overlay' },
+      React.createElement('div', { className: 'overlay-card' },
+        React.createElement('div', { className: 'ov-emoji' }, '🎉'),
+        React.createElement('div', { className: 'ov-title' },
+          sp('Teb','g-b'), sp('ri','g-r'), sp('k','g-y'), sp('ler!','g-g')
         ),
-        React.createElement('div',{className:'ov-sub'},'Google Search\'e ulaştın.'),
-        React.createElement('div',{className:'ov-score-wrap'},
-          React.createElement('div',{className:'ov-score'},score),
-          React.createElement('div',{className:'ov-lbl'},'puan'),
+        React.createElement('div', { className: 'ov-sub' }, "Google Search'e ulaştın."),
+        React.createElement('div', { className: 'ov-score-wrap' },
+          React.createElement('div', { className: 'ov-score' }, score),
+          React.createElement('div', { className: 'ov-lbl' }, 'puan'),
         ),
-        React.createElement('div',{className:'ov-btns'},
-          React.createElement('button',{className:'o-btn ghost',onClick:()=>C(true)},'Devam'),
-          React.createElement('button',{className:'o-btn primary',onClick:reset},'Yenile'),
-        )
+        React.createElement('div', { className: 'ov-btns' },
+          React.createElement('button', { className: 'o-btn ghost',   onClick: () => setCont(true) }, 'Devam'),
+          React.createElement('button', { className: 'o-btn primary', onClick: reset }, 'Yenile'),
+        ),
       )
-    ):null,
+    ) : null,
 
-    over?React.createElement('div',{className:'overlay'},
-      React.createElement('div',{className:'overlay-card'},
-        React.createElement('div',{className:'ov-emoji'},'🪨'),
-        React.createElement('div',{className:'ov-title'},'Oyun Bitti'),
-        React.createElement('div',{className:'ov-sub'},'Hareket kalmadı.'),
-        React.createElement('div',{className:'ov-score-wrap'},
-          React.createElement('div',{className:'ov-score'},score),
-          React.createElement('div',{className:'ov-lbl'},'puan'),
+    /* ── game over overlay ── */
+    over ? React.createElement('div', { className: 'overlay' },
+      React.createElement('div', { className: 'overlay-card' },
+        React.createElement('div', { className: 'ov-emoji' }, '🪨'),
+        React.createElement('div', { className: 'ov-title' }, 'Oyun Bitti'),
+        React.createElement('div', { className: 'ov-sub' }, 'Hareket kalmadı.'),
+        React.createElement('div', { className: 'ov-score-wrap' },
+          React.createElement('div', { className: 'ov-score' }, score),
+          React.createElement('div', { className: 'ov-lbl' }, 'puan'),
         ),
-        React.createElement('div',{className:'ov-btns'},
-          React.createElement('button',{className:'o-btn primary',onClick:reset},'Tekrar Oyna'),
-        )
+        React.createElement('div', { className: 'ov-btns' },
+          React.createElement('button', { className: 'o-btn primary', onClick: reset }, 'Tekrar Oyna'),
+        ),
       )
-    ):null,
+    ) : null,
   );
 }
 
